@@ -63,6 +63,7 @@ ON products (created_at DESC, id DESC);
 
 CREATE INDEX idx_products_category
 ON products (category);
+```
 ⚡ Key Features
 1. Cursor-Based Pagination (Core Feature)
 
@@ -78,11 +79,13 @@ Cursor format:
   "created_at": "...",
   "id": "..."
 }
+
 2. Category Filtering
 
 Supports filtering products by category:
 
 GET /products?category=electronics
+
 3. Fast Pagination
 
 Efficient queries using indexed columns and limited result sets.
@@ -90,6 +93,7 @@ Efficient queries using indexed columns and limited result sets.
 4. Large Dataset Support
 200,000 products generated via batch seeding
 Inserted in batches of 5,000 for performance
+```
 📡 API Endpoints
 GET /products
 
@@ -115,27 +119,34 @@ Example Response
   ],
   "nextCursor": "{\"created_at\":\"2026-06-23T00:12:28.278Z\",\"id\":\"399981\"}"
 }
+```
 🔁 Pagination Flow
 First request:
 GET /products?limit=20
 Next request:
 GET /products?limit=20&cursor=...
+```
 🧪 How to Run Locally
 1. Clone repository
 git clone <repo-url>
 cd product-pagination-backend
+
 2. Install dependencies
 npm install
+
 3. Setup environment variables
 
 Create .env file:
 
 DATABASE_URL=your_neon_postgres_url
 PORT=3000
+
 4. Run server
 npm run dev
+
 🌱 Seed Database (200,000 products)
 node scripts/seed.js
+```
 ⚡ Why Cursor Pagination
 
 Offset pagination was avoided because:
@@ -148,12 +159,14 @@ Instead, cursor pagination ensures:
 O(1) pagination performance
 Stable ordering
 Consistent results under live data changes
+```
 🧠 Key Learnings
 Handling large datasets efficiently
 Designing scalable pagination systems
 PostgreSQL indexing for performance
 Real-world backend architecture design
 Batch insertion optimization
+```
 🚀 Future Improvements
 Add authentication layer
 Add Redis caching for hot queries
