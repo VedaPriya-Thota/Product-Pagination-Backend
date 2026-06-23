@@ -1,52 +1,70 @@
 # Product Pagination Backend
 
-A scalable backend system to browse ~200,000 products with **fast cursor-based pagination**, category filtering, and consistent results even when data changes.
+A scalable backend for browsing ~200,000 products using cursor-based pagination, category filtering, and consistent results even when the underlying data changes mid-browse.
 
-Built as part of a backend engineering take-home assignment.
-
----
-
-## 🚀 Live Demo
-
-<!-- https://your-deployment-url.com -->
+Built as a backend engineering take-home assignment.
 
 ---
 
-## 🧠 Problem Statement
+## Table of Contents
 
-Build a backend that allows:
-- Browsing ~200,000 products
+- [Live Demo](#live-demo)
+- [Problem Statement](#problem-statement)
+- [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
+- [Database Schema](#database-schema)
+- [Indexes](#indexes)
+- [Key Features](#key-features)
+- [API Reference](#api-reference)
+- [Pagination Flow](#pagination-flow)
+- [Running Locally](#running-locally)
+- [Seeding the Database](#seeding-the-database)
+- [Why Cursor Pagination](#why-cursor-pagination)
+- [Key Learnings](#key-learnings)
+- [Future Improvements](#future-improvements)
+
+---
+
+## Live Demo
+
+[your-deployment-url.com](https://your-deployment-url.com) *(replace with your actual deployment link)*
+
+---
+
+## Problem Statement
+
+Design a backend that supports:
+
+- Browsing a catalog of ~200,000 products
 - Filtering by category
-- Fast pagination
-- Correct results even when data is updated during browsing
-  - No duplicate records
-  - No missing records
-- Efficient performance at scale
+- Fast, scalable pagination
+- Correct results even when records are inserted or updated during browsing — no duplicates, no missing records
 
 ---
 
-## ⚙️ Tech Stack
+## Tech Stack
 
-- Node.js
-- Express.js
-- PostgreSQL (Neon Cloud DB)
-- pg (node-postgres driver)
-- dotenv
+| Layer | Technology |
+|---|---|
+| Runtime | Node.js |
+| Framework | Express.js |
+| Database | PostgreSQL (Neon Cloud) |
+| DB Driver | `pg` (node-postgres) |
+| Config | dotenv |
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
-
+```
 Client → Express API → PostgreSQL (Neon)
+```
 
-
-Key design principle:
-> Keep pagination stateless and database-driven using cursor-based pagination.
+**Core design principle:** keep pagination stateless and database-driven using cursor-based pagination rather than offset-based pagination.
 
 ---
 
-## 🗄️ Database Schema
+## Database Schema
 
 ```sql
 CREATE TABLE products (
@@ -57,119 +75,192 @@ CREATE TABLE products (
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
-📊 Indexes (for performance)
+```
+
+---
+
+## Indexes
+
+```sql
 CREATE INDEX idx_products_cursor
 ON products (created_at DESC, id DESC);
 
 CREATE INDEX idx_products_category
 ON products (category);
 ```
-⚡ Key Features
-1. Cursor-Based Pagination (Core Feature)
 
-Instead of OFFSET pagination, this project uses cursor-based pagination:
+These support the two most frequent query patterns: cursor-ordered scans and category filtering.
 
-Prevents duplicates
-Prevents missing records
-Scales efficiently for large datasets
-Sorting logic:
+---
+
+## Key Features
+
+### Cursor-Based Pagination
+
+Rather than `OFFSET`/`LIMIT`, this project paginates using a cursor built from `(created_at, id)`:
+
+- No duplicate or skipped records as data changes mid-browse
+- Consistent O(1) page-fetch performance regardless of page depth
+- Scales cleanly to large datasets
+
+**Sort order:**
+
+```sql
 ORDER BY created_at DESC, id DESC
-Cursor format:
-{
-  "created_at": "...",
-  "id": "..."
-}
-
-2. Category Filtering
-
-Supports filtering products by category:
-
-GET /products?category=electronics
-
-3. Fast Pagination
-
-Efficient queries using indexed columns and limited result sets.
-
-4. Large Dataset Support
-200,000 products generated via batch seeding
-Inserted in batches of 5,000 for performance
 ```
-📡 API Endpoints
-GET /products
 
-Fetch paginated products.
+**Cursor shape:**
 
-Query Parameters:
-Param	Type	Description
-limit	number	Number of items per page (default: 20)
-category	string	Filter by category
-cursor	string	Pagination cursor (JSON string)
-Example Request
-GET /products?limit=20
-Example Response
+```json
+{
+  "created_at": "2026-06-23T00:12:28.278Z",
+  "id": "399981"
+}
+```
+
+### Category Filtering
+
+```
+GET /products?category=electronics
+```
+
+### Large Dataset Support
+
+- 200,000 products seeded for realistic load testing
+- Batch-inserted in chunks of 5,000 rows
+- Seeding script optimized to avoid memory and connection bottlenecks
+
+---
+
+## API Reference
+
+### `GET /products`
+
+Returns a paginated list of products.
+
+**Query Parameters**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `limit` | number | No | Items per page (default: 20) |
+| `category` | string | No | Filter by product category |
+| `cursor` | string | No | Opaque pagination cursor from the previous response |
+
+**Example Request**
+
+```
+GET /products?limit=20&category=books
+```
+
+**Example Response**
+
+```json
 {
   "data": [
     {
       "id": "400000",
-      "name": "Product 199999",
+      "name": "Product 400000",
       "category": "books",
-      "price": "7595",
+      "price": "759.50",
       "created_at": "2026-06-23T00:12:28.278Z"
     }
   ],
-  "nextCursor": "{\"created_at\":\"2026-06-23T00:12:28.278Z\",\"id\":\"399981\"}"
+  "nextCursor": "{\"created_at\":\"2026-06-23T00:12:28.278Z\",\"id\":\"399999\"}"
 }
 ```
-🔁 Pagination Flow
-First request:
-GET /products?limit=20
-Next request:
-GET /products?limit=20&cursor=...
+
+`nextCursor` is `null` when there are no further pages.
+
+---
+
+## Pagination Flow
+
+**Step 1 — Initial request**
+
 ```
-🧪 How to Run Locally
-1. Clone repository
+GET /products?limit=20
+```
+
+**Step 2 — Subsequent pages, using the cursor from the previous response**
+
+```
+GET /products?limit=20&cursor=%7B%22created_at%22%3A...%7D
+```
+
+---
+
+## Running Locally
+
+**1. Clone the repository**
+
+```bash
 git clone <repo-url>
 cd product-pagination-backend
+```
 
-2. Install dependencies
+**2. Install dependencies**
+
+```bash
 npm install
+```
 
-3. Setup environment variables
+**3. Configure environment variables**
 
-Create .env file:
+Create a `.env` file in the project root:
 
+```env
 DATABASE_URL=your_neon_postgres_url
 PORT=3000
+```
 
-4. Run server
+**4. Start the server**
+
+```bash
 npm run dev
+```
 
-🌱 Seed Database (200,000 products)
+---
+
+## Seeding the Database
+
+Populate the database with 200,000 sample products:
+
+```bash
 node scripts/seed.js
 ```
-⚡ Why Cursor Pagination
 
-Offset pagination was avoided because:
+---
 
-It becomes slow at large offsets
-It can skip or duplicate data when new rows are inserted
+## Why Cursor Pagination
 
-Instead, cursor pagination ensures:
+Offset-based pagination was avoided because it:
 
-O(1) pagination performance
-Stable ordering
-Consistent results under live data changes
-```
-🧠 Key Learnings
-Handling large datasets efficiently
-Designing scalable pagination systems
-PostgreSQL indexing for performance
-Real-world backend architecture design
-Batch insertion optimization
-```
-🚀 Future Improvements
-Add authentication layer
-Add Redis caching for hot queries
-Add full-text search
-Add rate limiting
-Add Docker support
+- Degrades in performance at large offsets (the database still scans and discards all skipped rows)
+- Can return duplicate or missing records if rows are inserted/deleted while a user is paging through results
+
+Cursor-based pagination instead provides:
+
+- Stable, predictable ordering
+- Consistent results even under concurrent writes
+- Performance that doesn't degrade with page depth
+
+---
+
+## Key Learnings
+
+- Designing pagination strategies that hold up under live data changes
+- Indexing strategy for high-volume query patterns in PostgreSQL
+- Efficient batch insertion for large seed datasets
+- Structuring a backend service for clarity and scalability
+
+---
+
+## Future Improvements
+
+- [ ] Authentication layer
+- [ ] Redis caching for hot queries
+- [ ] Full-text search on product name/category
+- [ ] Rate limiting
+- [ ] Docker support for one-command local setup
+
+---
