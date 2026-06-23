@@ -15,6 +15,13 @@ app.use(express.json());
 app.use("/products", productRoutes);
 
 // health check route
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    service: "product-pagination-backend",
+  });
+});
+
 app.get("/", (req, res) => {
   res.json({ message: "Server is running 🚀" });
 });

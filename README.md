@@ -19,15 +19,17 @@ Built as a backend engineering take-home assignment.
 - [Pagination Flow](#pagination-flow)
 - [Running Locally](#running-locally)
 - [Seeding the Database](#seeding-the-database)
-- [Why Cursor Pagination](#why-cursor-pagination)
+- [Design Decisions](#design-decisions)
+- [Performance Considerations](#performance-considerations)
 - [Key Learnings](#key-learnings)
 - [Future Improvements](#future-improvements)
+- [Assignment Notes](#assignment-notes)
 
 ---
 
 ## Live Demo
 
-[your-deployment-url.com](https://your-deployment-url.com) 
+[your-deployment-url.com](https://your-deployment-url.com) *(replace with your actual deployment link)*
 
 ---
 
@@ -124,6 +126,26 @@ ORDER BY created_at DESC, id DESC
 GET /products?category=electronics
 ```
 
+### Request Validation
+
+API inputs are validated before they reach the database:
+
+- Default page size: 20
+- Maximum page size: 100
+- Invalid or malformed cursors return `400 Bad Request`
+
+This guards against abusive requests and malformed pagination parameters.
+
+### Query Performance Monitoring
+
+Each database query's execution time is measured and logged, e.g.:
+
+```text
+Products query completed in 8 ms
+```
+
+This makes performance regressions easy to spot as the dataset or query complexity grows.
+
 ### Large Dataset Support
 
 - 200,000 products seeded for realistic load testing
@@ -170,6 +192,19 @@ GET /products?limit=20&category=books
 ```
 
 `nextCursor` is `null` when there are no further pages.
+
+### `GET /health`
+
+Basic health check endpoint, useful for uptime monitoring and deployment checks.
+
+**Example Response**
+
+```json
+{
+  "status": "ok",
+  "service": "product-pagination-backend"
+}
+```
 
 ---
 
@@ -231,18 +266,38 @@ node scripts/seed.js
 
 ---
 
-## Why Cursor Pagination
+## Design Decisions
 
-Offset-based pagination was avoided because it:
+### Why PostgreSQL?
 
-- Degrades in performance at large offsets (the database still scans and discards all skipped rows)
-- Can return duplicate or missing records if rows are inserted/deleted while a user is paging through results
+PostgreSQL was chosen because it offers strong indexing support, reliable sort performance at scale, and efficient handling of cursor-based pagination over large datasets.
+
+### Why Cursor Pagination Instead of Offset?
+
+`OFFSET` pagination gets slower as the offset grows, since the database still has to scan and discard every skipped row. It can also return duplicate or missing records if rows are inserted or deleted while a user is paging through results.
 
 Cursor-based pagination instead provides:
 
 - Stable, predictable ordering
 - Consistent results even under concurrent writes
 - Performance that doesn't degrade with page depth
+
+### Why Composite Ordering on `(created_at, id)`?
+
+Sorting on `created_at` alone isn't sufficient, since multiple products can share the same timestamp. Adding `id` as a tiebreaker guarantees deterministic, stable ordering across pages.
+
+---
+
+## Performance Considerations
+
+To keep the system fast at scale:
+
+- Indexed pagination columns (`created_at`, `id`) and indexed category filtering
+- Cursor-based pagination instead of offset-based scans
+- Batch inserts (chunks of 5,000) during seeding
+- Per-query execution time logging to catch regressions early
+
+The system was load-tested against a seeded dataset of ~200,000 products.
 
 ---
 
@@ -262,5 +317,18 @@ Cursor-based pagination instead provides:
 - [ ] Full-text search on product name/category
 - [ ] Rate limiting
 - [ ] Docker support for one-command local setup
+
+---
+
+## Assignment Notes
+
+This project prioritizes correctness and scalability over feature breadth. Goals achieved:
+
+- Fast, stable pagination under live data changes
+- Input validation and safe defaults at the API boundary
+- Indexed, efficient querying on a 200K-row dataset
+- Clean, maintainable backend structure
+
+The items in Future Improvements were intentionally deferred to keep the initial implementation focused.
 
 ---

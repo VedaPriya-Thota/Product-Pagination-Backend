@@ -2,9 +2,33 @@ const pool = require("../db");
 
 const getProducts = async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit || "20");
+    const rawLimit = parseInt(req.query.limit, 10);
+    const limit = Math.min(
+      Math.max(!Number.isNaN(rawLimit) ? rawLimit : 20, 1),
+      100
+    );
     const category = req.query.category;
-    const cursor = req.query.cursor;
+
+    let cursorData = null;
+    if (req.query.cursor) {
+      try {
+        cursorData = JSON.parse(req.query.cursor);
+      } catch (err) {
+        return res.status(400).json({
+          error: "Invalid cursor format",
+        });
+      }
+
+      if (
+        cursorData == null ||
+        typeof cursorData.created_at === "undefined" ||
+        typeof cursorData.id === "undefined"
+      ) {
+        return res.status(400).json({
+          error: "Invalid cursor payload",
+        });
+      }
+    }
 
     let values = [];
     let whereClauses = [];
@@ -16,13 +40,11 @@ const getProducts = async (req, res) => {
     }
 
     // 2. cursor pagination
-    if (cursor) {
-      const decoded = JSON.parse(cursor);
-
-      values.push(decoded.created_at);
+    if (cursorData) {
+      values.push(cursorData.created_at);
       const createdAtIndex = values.length;
 
-      values.push(decoded.id);
+      values.push(cursorData.id);
       const idIndex = values.length;
 
       whereClauses.push(
@@ -47,7 +69,11 @@ const getProducts = async (req, res) => {
 
     values.push(limit + 1); // fetch extra to check next cursor
 
+    const startTime = Date.now();
     const result = await pool.query(query, values);
+    const queryTime = Date.now() - startTime;
+
+    console.log(`Products query completed in ${queryTime} ms`);
 
     // 4. next cursor logic
     let nextCursor = null;
@@ -66,6 +92,7 @@ const getProducts = async (req, res) => {
     res.json({
       data: result.rows,
       nextCursor,
+      queryTimeMs: queryTime,
     });
   } catch (err) {
     console.error(err);
