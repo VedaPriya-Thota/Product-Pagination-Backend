@@ -27,7 +27,7 @@ Built as a backend engineering take-home assignment.
 
 ## Live Demo
 
-[your-deployment-url.com](https://your-deployment-url.com) *(replace with your actual deployment link)*
+[your-deployment-url.com](https://your-deployment-url.com) 
 
 ---
 
